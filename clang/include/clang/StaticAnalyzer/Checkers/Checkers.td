@@ -550,6 +550,16 @@ def VforkChecker : Checker<"Vfork">,
 
 let ParentPackage = UnixAlpha in {
 
+def AssignmentInConditionChecker : Checker<"AssignmentInConditionChecker">,  
+                          HelpText<"AssignmentInConditionChecker checks if branch condition is assignment statement">,  
+                          Documentation<NotDocumented>;  
+
+def InfiniteLoopChecker : Checker<"InfiniteLoopChecker">,  
+                          HelpText<"Checks for unitentional infinite loop">,  
+                          Documentation<NotDocumented>;  
+
+
+
 def ErrnoChecker : Checker<"Errno">,
   HelpText<"Check for improper use of 'errno'">,
   Dependencies<[ErrnoModeling]>,
