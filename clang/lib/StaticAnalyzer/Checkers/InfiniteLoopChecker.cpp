@@ -304,27 +304,17 @@ void InfiniteLoopChecker::checkEndAnalysis(ExplodedGraph &G,
     //REPORTINGS  
     if(isa<BreakStmt>(S)){
       
-      //if(isInLoop(PM, S)){
-
-        B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This break statement in loop is never executed. There is possible infinite loop.", DL, SR);
-
+      B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This break statement in loop is never executed. There is possible infinite loop.", DL, SR);
       
-    }else if(isReturnStmt(PM, S)){
+    }else if(isReturnStmt(PM, S) && isInLoop(PM, S)){
       
-      if(isInLoop(PM, S)){
+      B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This return statement in loop is never executed. There is possible infinite loop.", DL, SR);
 
-        B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This return statement in loop is never executed. There is possible infinite loop.", DL, SR);
-
-      }else{
-
-        B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This return statement is never executed. There is possible infinite loop preceding this statement.", DL, SR);
-
-      }
     }else if(foundLoopPred){
 
-        B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This statement is never executed. There is possible infinite loop preceding this statement.", DL, SR);
+      B.EmitBasicReport(D, this, "Unreachable code", categories::UnusedCode,"This statement is never executed. There is possible infinite loop preceding this statement.", DL, SR);
 
-      }
+    }
 
     //*********************************************************************************************************************************
   }
