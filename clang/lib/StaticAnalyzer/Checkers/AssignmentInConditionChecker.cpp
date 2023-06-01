@@ -21,7 +21,9 @@ class AssignmentInConditionChecker: public Checker<check::BranchCondition> {
 
     mutable std::unique_ptr<BuiltinBug> BT;
     void ReportBug(const Expr *Ex, const std::string &Msg, CheckerContext &C) const;
-    void checkAssignment(const Stmt *Statement, CheckerContext &Ctx) const;
+    static bool isAssignment(const Expr* expr);
+    static bool checkCommaOp(const Expr* expr);
+
 
     public:
         void checkBranchCondition(const Stmt *Condition, CheckerContext &Ctx) const;
@@ -39,60 +41,65 @@ void AssignmentInConditionChecker::ReportBug(const Expr *Ex, const std::string &
     }
 }
 
-void AssignmentInConditionChecker::checkAssignment(const Stmt *Statement, CheckerContext &Ctx) const {
+void AssignmentInConditionChecker::checkBranchCondition(const Stmt *Statement, CheckerContext &Ctx) const {
     const Expr* expr=dyn_cast<Expr>(Statement);
 
-    //class of expresion that contains assignment will be ImplicitCastExpr
-    //type of right operand comma operator has to be bool
-    if(const ImplicitCastExpr* implicitExpr = dyn_cast_or_null<ImplicitCastExpr>(expr)){
-        if(! (implicitExpr->getBeginLoc()==implicitExpr->getEndLoc())){
-            ReportBug(expr,"Assignment is used as branch condition",Ctx);
-            return;
+    if(isAssignment(expr)){
+        ReportBug(expr,"Assignment is used as branch condition",Ctx);
+    }
+    // class of condition statement that contains assignment will be ImplicitCastExpr
+    // recursive analysis
+    else if(const ImplicitCastExpr* implicitExpr = dyn_cast_or_null<ImplicitCastExpr>(expr)){
+        const Expr * e = implicitExpr->getSubExprAsWritten();
+
+        checkBranchCondition(e, Ctx);
+    }
+    //we expect right operand of comma operator to be a condition and left operand to produce some side effect
+    //if that is not a case we report a warning
+    else if(const BinaryOperator *binOp = dyn_cast<BinaryOperator>(expr)){
+        if(binOp->isCommaOp()){
+            checkBranchCondition(binOp->getRHS(), Ctx);
+
+            if(checkCommaOp(binOp->getLHS())){
+                ReportBug(expr,"Statement produces no effect",Ctx);
+            }
+        }
+    }
+    // recursive analysis for expression inside parentheses
+    else if(const ParenExpr *p = dyn_cast<ParenExpr>(expr)){
+        checkBranchCondition(p->getSubExpr(), Ctx);
+        return;
+    }
+
+}
+
+// x++, x--, ... should not report -> checks only for binary operators
+bool AssignmentInConditionChecker::isAssignment(const Expr* expr){
+    if(const BinaryOperator *binOp = dyn_cast_or_null<BinaryOperator>(expr)){
+        if(binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp())
+            return true;
+    }
+
+    return false;
+}
+
+// checks if any of left operands of comma operator does not produce side effect
+bool AssignmentInConditionChecker::checkCommaOp(const Expr* expr){
+    if(isa<UnaryOperator>(expr)){
+        return false;
+    }
+
+    if(const BinaryOperator *binOp = dyn_cast<BinaryOperator>(expr)){
+        if(binOp->isCommaOp()){
+            return checkCommaOp(binOp->getLHS()) || checkCommaOp(binOp->getRHS());
         }
     }
 
-
-    //we expect left operand of comma operator to produce some side effect
-    //if that is not a case we report a warning
-    if(const BinaryOperator *binOp = dyn_cast<BinaryOperator>(expr)) {
-        if(binOp->isCommaOp()){
-            expr = binOp->getLHS();
-
-            while(const BinaryOperator *binOperator = dyn_cast_or_null<BinaryOperator>(expr)) {
-                if(!binOperator->isCommaOp()){
-                    if(!(binOperator->isAssignmentOp() || binOperator->isCompoundAssignmentOp())){
-                        ReportBug(expr,"Statement produces no effect",Ctx);
-                        return;
-                    }
-                }
-        
-                Expr* leftExpr = binOperator->getLHS();
-                if(BinaryOperator *leftOp = dyn_cast<BinaryOperator>(leftExpr)) {
-                    if(!leftOp->isCommaOp()){
-                        if(!(leftOp->isAssignmentOp() || leftOp->isCompoundAssignmentOp())){
-                            ReportBug(expr,"Statement produces no effect",Ctx);
-                            return;
-                        }
-                    }
-                }
-
-                Expr* rightExpr = binOperator->getRHS();
-                if(BinaryOperator *rightOp = dyn_cast<BinaryOperator>(rightExpr)) {
-                    if(!(rightOp->isAssignmentOp() || rightOp->isCompoundAssignmentOp())){
-                        ReportBug(rightExpr,"Statement produces no effect",Ctx);
-                        return;    
-                    }
-                }
-                expr = leftExpr;
-            }
-        }      
+    if(const ParenExpr *p = dyn_cast<ParenExpr>(expr)){
+        return checkCommaOp(p->getSubExpr());
     }
-}
 
-
-void AssignmentInConditionChecker::checkBranchCondition(const Stmt *Condition, CheckerContext &Ctx) const {
-    
-    checkAssignment(Condition, Ctx);
+    return !isAssignment(expr);
 
 }
 
