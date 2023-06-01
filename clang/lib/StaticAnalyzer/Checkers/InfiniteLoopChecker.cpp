@@ -434,6 +434,10 @@ bool InfiniteLoopChecker::hasBreakStmt(const Stmt *S){
   if(isa<BreakStmt>(S) || isa<ReturnStmt>(S)){
     return true;
   }
+  else if(isa<WhileStmt>(S) || isa<ForStmt>(S)){
+    return false;
+  }
+
 
   for(Stmt::const_child_iterator i = S->child_begin(), e = S->child_end(); i != e; ++i){
     if(hasBreakStmt(*i)){
